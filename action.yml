@@ -45,6 +45,8 @@ runs:
         echo "🔍 Raw variable set response:"
         echo "$response"
 
+        echo "🔍 Looking for variable set '$VAR_SET_NAME'..."
+
         var_set_id=$(echo "$response" | jq -r \
           --arg NAME "$VAR_SET_NAME" \
           '.data[] | select(.attributes.name == $NAME) | .id')

@@ -36,19 +36,13 @@ runs:
         TFC_ORGANIZATION: ${{ inputs.tfc_organization }}
         VAR_SET_NAME: ${{ inputs.var_set_name }}
       run: |
-        # Correct URL to list variable sets by org (URL-encoded square brackets)
         VARIABLE_SETS_URL="https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORGANIZATION/varsets"
+        echo "📡 Fetching variable sets for org '$TFC_ORGANIZATION'..."
 
-        echo "📡 Fetching variable sets for organization '$TFC_ORGANIZATION' from $VARIABLE_SETS_URL ..."
         response=$(curl -sS \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           "$VARIABLE_SETS_URL")
-
-        echo "🔍 Raw variable set response:"
-        echo "$response"
-
-        echo "🔍 Looking for variable set '$VAR_SET_NAME'..."
 
         var_set_id=$(echo "$response" | jq -r \
           --arg NAME "$VAR_SET_NAME" \
@@ -59,7 +53,8 @@ runs:
           exit 1
         fi
 
-        echo "✅ Found variable set ID: $var_set_id"
+        echo "::add-mask::$var_set_id"
+        echo "✅ Found variable set for '$VAR_SET_NAME'."
         echo "var_set_id=$var_set_id" >> "$GITHUB_OUTPUT"
 
     - name: Check if Variable Set Attached to Workspace
@@ -72,26 +67,21 @@ runs:
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
         VERIFY_URL="https://$TFC_HOSTNAME/api/v2/workspaces/$WORKSPACE_ID/varsets"
-
-        echo "🔍 Checking if variable set is attached to workspace '$WORKSPACE_ID' via $VERIFY_URL ..."
+        echo "🔍 Checking if variable set is already attached..."
 
         response=$(curl -sS \
           --header "Authorization: Bearer $TFC_TOKEN" \
           "$VERIFY_URL")
 
-        echo "📥 Response:"
-        echo "$response"
-
-        # Match using the VAR_SET_ID fetched by name
         attached=$(echo "$response" | jq -r \
           --arg varset_id "$VAR_SET_ID" \
           '.data[]? | select(.id == $varset_id) | .id')
 
         if [[ "$attached" == "$VAR_SET_ID" ]]; then
-          echo "✅ Variable set already attached."
+          echo "✅ Variable set is already attached."
           echo "already_attached=true" >> "$GITHUB_OUTPUT"
         else
-          echo "ℹ️ Variable set not attached yet."
+          echo "ℹ️ Variable set is not attached."
           echo "already_attached=false" >> "$GITHUB_OUTPUT"
         fi
 
@@ -105,37 +95,23 @@ runs:
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
         ATTACH_URL="https://$TFC_HOSTNAME/api/v2/varsets/$VAR_SET_ID/relationships/workspaces"
+        echo "📎 Attaching variable set to workspace..."
 
-        echo "📎 Attaching variable set '$VAR_SET_ID' to workspace '$WORKSPACE_ID' via $ATTACH_URL ..."
+        payload=$(jq -n --arg ws_id "$WORKSPACE_ID" '{
+          data: [{ type: "workspaces", id: $ws_id }]
+        }')
 
-        payload=$(jq -n \
-          --arg ws_id "$WORKSPACE_ID" \
-          '{
-            data: [
-              {
-                type: "workspaces",
-                id: $ws_id
-              }
-            ]
-          }')
-
-
-        echo "📤 Request payload:"
-        echo "$payload"
-
-        response=$(curl -sS -w "\nHTTP %{http_code}" -X POST \
+        full_response=$(curl -sS -w "\nHTTP_CODE:%{http_code}" -X POST \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           --data "$payload" \
           "$ATTACH_URL")
 
-        echo "🔁 Response from attach call:"
-        echo "$response"
+        http_status=$(echo "$full_response" | sed -n 's/^HTTP_CODE://p')
 
-        if [[ "$status" == "204" || "$status" == "200" ]]; then
-          echo "✅ Successfully attached variable set."
+        if [[ "$http_status" == "204" || "$http_status" == "200" ]]; then
+          echo "✅ Variable set successfully attached."
         else
-          echo "❌ Attach failed with HTTP $status"
-          echo "$body"
+          echo "❌ Failed to attach variable set. HTTP $http_status"
           exit 1
         fi

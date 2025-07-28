@@ -31,43 +31,52 @@ runs:
       shell: bash
       env:
         TFC_TOKEN: ${{ inputs.tfc_token }}
+        TFC_HOSTNAME: ${{ inputs.tfc_hostname }}
+        TFC_ORGANIZATION: ${{ inputs.tfc_organization }}
+        VAR_SET_NAME: ${{ inputs.var_set_name }}
       run: |
         response=$(curl -s \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
-          "https://${{ inputs.tfc_hostname }}/api/v2/organizations/${{ inputs.tfc_organization }}/variable-sets")
+          "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORGANIZATION/variable-sets")
 
-        echo "Response: $response"
         var_set_id=$(echo "$response" | jq -r \
-          --arg NAME "${{ inputs.var_set_name }}" \
+          --arg NAME "$VAR_SET_NAME" \
           '.data[] | select(.attributes.name == $NAME) | .id')
 
         if [[ -z "$var_set_id" || "$var_set_id" == "null" ]]; then
-          echo "Variable set '${{ inputs.var_set_name }}' not found"
+          echo "Variable set '$VAR_SET_NAME' not found"
           exit 1
         fi
 
-        echo "var_set_id=$var_set_id" >> $GITHUB_OUTPUT
+        echo "var_set_id=$var_set_id" >> "$GITHUB_OUTPUT"
 
     - name: Attach Variable Set to Workspace
       shell: bash
       env:
         TFC_TOKEN: ${{ inputs.tfc_token }}
+        TFC_HOSTNAME: ${{ inputs.tfc_hostname }}
+        WORKSPACE_ID: ${{ inputs.tfc_workspace_id }}
+        VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
-        curl -s -X POST \
-          --header "Authorization: Bearer $TFC_TOKEN" \
-          --header "Content-Type: application/vnd.api+json" \
-          --data '{
-            "data": {
-              "type": "variable-set-relationships",
-              "relationships": {
-                "workspace": {
-                  "data": {
-                    "id": "'${{ inputs.tfc_workspace_id }}'",
-                    "type": "workspaces"
+        payload=$(jq -n \
+          --arg ws_id "$WORKSPACE_ID" \
+          '{
+            data: {
+              type: "variable-set-relationships",
+              relationships: {
+                workspace: {
+                  data: {
+                    id: $ws_id,
+                    type: "workspaces"
                   }
                 }
               }
             }
-          }' \
-          "https://${{ inputs.tfc_hostname }}/api/v2/variable-sets/${{ steps.get_var_set.outputs.var_set_id }}/relationships/workspaces"
+          }')
+
+        curl -s -X POST \
+          --header "Authorization: Bearer $TFC_TOKEN" \
+          --header "Content-Type: application/vnd.api+json" \
+          --data "$payload" \
+          "https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces"

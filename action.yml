@@ -110,7 +110,7 @@ runs:
         WORKSPACE_ID: ${{ inputs.tfc_workspace_id }}
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
-        VERIFY_URL="https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces"
+        VERIFY_URL="https://$TFC_HOSTNAME/api/v2/varsets/$VAR_SET_ID/relationships/workspaces"
 
         echo "✅ Verifying variable set '$VAR_SET_ID' is attached to workspace '$WORKSPACE_ID' using $VERIFY_URL ..."
         response=$(curl -sS \

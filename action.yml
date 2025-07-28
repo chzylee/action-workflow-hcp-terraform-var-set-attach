@@ -1,5 +1,6 @@
 name: 'Attach Variable Set to HCP Terraform Workspace'
 description: 'Looks up an HCP Terraform Variable Set by name and attaches it to a workspace by ID'
+
 inputs:
   tfc_hostname:
     description: 'HCP Terraform hostname (default: https://app.terraform.io)'
@@ -35,20 +36,25 @@ runs:
         TFC_ORGANIZATION: ${{ inputs.tfc_organization }}
         VAR_SET_NAME: ${{ inputs.var_set_name }}
       run: |
+        echo "📡 Fetching variable sets for organization '$TFC_ORGANIZATION'..."
         response=$(curl -s \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORGANIZATION/variable-sets")
+
+        echo "🔍 Raw variable set response:"
+        echo "$response"
 
         var_set_id=$(echo "$response" | jq -r \
           --arg NAME "$VAR_SET_NAME" \
           '.data[] | select(.attributes.name == $NAME) | .id')
 
         if [[ -z "$var_set_id" || "$var_set_id" == "null" ]]; then
-          echo "Variable set '$VAR_SET_NAME' not found"
+          echo "❌ Variable set '$VAR_SET_NAME' not found."
           exit 1
         fi
 
+        echo "✅ Found variable set ID: $var_set_id"
         echo "var_set_id=$var_set_id" >> "$GITHUB_OUTPUT"
 
     - name: Attach Variable Set to Workspace
@@ -59,6 +65,8 @@ runs:
         WORKSPACE_ID: ${{ inputs.tfc_workspace_id }}
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
+        echo "📎 Attaching variable set '$VAR_SET_ID' to workspace '$WORKSPACE_ID'..."
+
         payload=$(jq -n \
           --arg ws_id "$WORKSPACE_ID" \
           '{
@@ -75,11 +83,17 @@ runs:
             }
           }')
 
-        curl -s -X POST \
+        echo "📤 Request payload:"
+        echo "$payload"
+
+        response=$(curl -s -w "\nHTTP %{http_code}" -X POST \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           --data "$payload" \
-          "https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces"
+          "https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces")
+
+        echo "🔁 Response from attach call:"
+        echo "$response"
 
     - name: Verify Variable Set Attached to Workspace
       shell: bash
@@ -89,19 +103,22 @@ runs:
         WORKSPACE_ID: ${{ inputs.tfc_workspace_id }}
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
+        echo "✅ Verifying variable set '$VAR_SET_ID' is attached to workspace '$WORKSPACE_ID'..."
         response=$(curl -s \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           "https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces")
+
+        echo "🔍 Verification response:"
+        echo "$response"
 
         attached=$(echo "$response" | jq -r \
           --arg ws_id "$WORKSPACE_ID" \
           '.data[]? | select(.id == $ws_id) | .id')
 
         if [[ "$attached" == "$WORKSPACE_ID" ]]; then
-          echo "✅ Variable set successfully attached to workspace."
+          echo "🎉 Variable set successfully attached to workspace."
         else
           echo "❌ Failed to verify variable set attachment."
-          echo "Response: $response"
           exit 1
         fi

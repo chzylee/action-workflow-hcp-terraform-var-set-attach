@@ -36,11 +36,14 @@ runs:
         TFC_ORGANIZATION: ${{ inputs.tfc_organization }}
         VAR_SET_NAME: ${{ inputs.var_set_name }}
       run: |
-        echo "📡 Fetching variable sets for organization '$TFC_ORGANIZATION'..."
-        response=$(curl -sS -w \
+        # Abstract URL for fetching variable sets
+        VARIABLE_SETS_URL="https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORGANIZATION/variable-sets"
+
+        echo "📡 Fetching variable sets for organization '$TFC_ORGANIZATION' from $VARIABLE_SETS_URL ..."
+        response=$(curl -sS -w "\nHTTP %{http_code}" \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
-          "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORGANIZATION/variable-sets")
+          "$VARIABLE_SETS_URL")
 
         echo "🔍 Raw variable set response:"
         echo "$response"
@@ -67,7 +70,10 @@ runs:
         WORKSPACE_ID: ${{ inputs.tfc_workspace_id }}
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
-        echo "📎 Attaching variable set '$VAR_SET_ID' to workspace '$WORKSPACE_ID'..."
+        # Abstract URL for attaching variable set to workspace
+        ATTACH_URL="https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces"
+
+        echo "📎 Attaching variable set '$VAR_SET_ID' to workspace '$WORKSPACE_ID' via $ATTACH_URL ..."
 
         payload=$(jq -n \
           --arg ws_id "$WORKSPACE_ID" \
@@ -92,7 +98,7 @@ runs:
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           --data "$payload" \
-          "https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces")
+          "$ATTACH_URL")
 
         echo "🔁 Response from attach call:"
         echo "$response"
@@ -105,11 +111,14 @@ runs:
         WORKSPACE_ID: ${{ inputs.tfc_workspace_id }}
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
-        echo "✅ Verifying variable set '$VAR_SET_ID' is attached to workspace '$WORKSPACE_ID'..."
-        response=$(curl -sS -w \
+        # Abstract URL for verification call
+        VERIFY_URL="https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces"
+
+        echo "✅ Verifying variable set '$VAR_SET_ID' is attached to workspace '$WORKSPACE_ID' using $VERIFY_URL ..."
+        response=$(curl -sS \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
-          "https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces")
+          "$VERIFY_URL")
 
         echo "🔍 Verification response:"
         echo "$response"

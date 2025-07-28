@@ -1,5 +1,5 @@
 name: 'Attach Variable Set to HCP Terraform Workspace'
-description: 'Looks up an HCP Terraform Variable Set by name and attaches it to a workspace'
+description: 'Looks up an HCP Terraform Variable Set by name and attaches it to a workspace by ID'
 inputs:
   tfc_hostname:
     description: 'HCP Terraform hostname (default: https://app.terraform.io)'
@@ -8,8 +8,8 @@ inputs:
   tfc_organization:
     description: 'HCP Terraform organization name'
     required: true
-  tfc_workspace:
-    description: 'HCP Terraform workspace name'
+  tfc_workspace_id:
+    description: 'HCP Terraform workspace ID'
     required: true
   tfc_token:
     description: 'HCP Terraform API token'
@@ -25,27 +25,6 @@ runs:
       shell: bash
       run: |
         sudo apt-get update && sudo apt-get install -y jq
-
-    - name: Get Workspace ID
-      id: get_workspace
-      shell: bash
-      env:
-        TFC_TOKEN: ${{ inputs.tfc_token }}
-      run: |
-        response=$(curl -s \
-          --header "Authorization: Bearer $TFC_TOKEN" \
-          --header "Content-Type: application/vnd.api+json" \
-          "https://${{ inputs.tfc_hostname }}/api/v2/organizations/${{ inputs.tfc_organization }}/workspaces/${{ inputs.tfc_workspace }}")
-
-        echo "Response: $response"
-        workspace_id=$(echo "$response" | jq -r '.data.id')
-
-        if [[ "$workspace_id" == "null" ]]; then
-          echo "Workspace not found"
-          exit 1
-        fi
-
-        echo "workspace_id=$workspace_id" >> $GITHUB_OUTPUT
 
     - name: Find Variable Set ID by Name
       id: get_var_set
@@ -84,7 +63,7 @@ runs:
               "relationships": {
                 "workspace": {
                   "data": {
-                    "id": "'${{ steps.get_workspace.outputs.workspace_id }}'",
+                    "id": "'${{ inputs.tfc_workspace_id }}'",
                     "type": "workspaces"
                   }
                 }

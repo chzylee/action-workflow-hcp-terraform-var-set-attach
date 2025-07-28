@@ -77,18 +77,14 @@ runs:
         payload=$(jq -n \
           --arg ws_id "$WORKSPACE_ID" \
           '{
-            data: {
-              type: "variable-set-relationships",
-              relationships: {
-                workspace: {
-                  data: {
-                    id: $ws_id,
-                    type: "workspaces"
-                  }
-                }
+            data: [
+              {
+                type: "workspaces",
+                id: $ws_id
               }
-            }
+            ]
           }')
+
 
         echo "📤 Request payload:"
         echo "$payload"

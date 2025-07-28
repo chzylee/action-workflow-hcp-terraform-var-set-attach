@@ -37,7 +37,7 @@ runs:
         VAR_SET_NAME: ${{ inputs.var_set_name }}
       run: |
         echo "📡 Fetching variable sets for organization '$TFC_ORGANIZATION'..."
-        response=$(curl -s \
+        response=$(curl -sS -w \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORGANIZATION/variable-sets")
@@ -88,7 +88,7 @@ runs:
         echo "📤 Request payload:"
         echo "$payload"
 
-        response=$(curl -s -w "\nHTTP %{http_code}" -X POST \
+        response=$(curl -sS -w "\nHTTP %{http_code}" -X POST \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           --data "$payload" \
@@ -106,7 +106,7 @@ runs:
         VAR_SET_ID: ${{ steps.get_var_set.outputs.var_set_id }}
       run: |
         echo "✅ Verifying variable set '$VAR_SET_ID' is attached to workspace '$WORKSPACE_ID'..."
-        response=$(curl -s \
+        response=$(curl -sS -w \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
           "https://$TFC_HOSTNAME/api/v2/variable-sets/$VAR_SET_ID/relationships/workspaces")
